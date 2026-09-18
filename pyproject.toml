@@ -1,10 +1,9 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=69", "setuptools-scm[toml]>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ggraft"
-version = "0.1.0"
 description = "GLSL Graft - declarative injection patches for vanilla Minecraft shaders"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,8 +16,16 @@ classifiers = [
 ]
 dependencies = ["click>=8.1"]
 
+dynamic = ["version"]
+
 [project.scripts]
 ggraft = "ggraft.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools_scm]
+tag_regex = "^(?P<version>\\d+\\.\\d+\\.\\d+)$"
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+fallback_version = "0.0.0"
