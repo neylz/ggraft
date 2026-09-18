@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ggraft"
+version = "0.1.0"
+description = "GLSL Graft - declarative injection patches for vanilla Minecraft shaders"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Neylz" }]
+keywords = ["minecraft", "glsl", "shaders", "resourcepack", "patching"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Build Tools",
+]
+dependencies = ["click>=8.1"]
+
+[project.scripts]
+ggraft = "ggraft.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
