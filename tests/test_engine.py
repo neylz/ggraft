@@ -9,11 +9,19 @@ from ggraft.patching import engine, patch as patch_module
 
 from tests.fixtures import CONFIG, REPLACE_PATCH
 
+FUNCTION_PATCH = """targets = ["core/a.vsh"]
+[[injection]]
+op = "function"
+function = "main"
+at = "TAIL"
+text = "iso_finish();"
+"""
+
 IDLE_PATCH = """targets = ["core/*.vsh"]
 exclude = ["core/*.vsh"]
 [[injection]]
 op = "replace"
-at = "x"
+match = "x"
 with = "y"
 """
 
@@ -74,6 +82,14 @@ class TestEngine(unittest.TestCase):
         _, second = self.build()
         self.assertTrue(first.results[0].changed)
         self.assertFalse(second.results[0].changed)
+
+    def test_a_function_injection_reaches_the_output(self):
+        self.write_patch("p", FUNCTION_PATCH)
+        cfg, _ = self.build()
+        self.assertIn(
+            "void main() { gl_Position = A; iso_finish(); }",
+            (cfg.output_dir / "core" / "a.vsh").read_text(encoding="utf-8"),
+        )
 
     def test_a_missing_base_says_to_pull_first(self):
         shutil.rmtree(self.root / "base")

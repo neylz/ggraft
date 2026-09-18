@@ -5,7 +5,7 @@ from pathlib import Path
 from ggraft.errors import PatchError
 from ggraft.patching import patch as patch_module
 
-REPLACE = '[[injection]]\nop = "replace"\nat = "x"\nwith = "y"\n'
+REPLACE = '[[injection]]\nop = "replace"\nmatch = "x"\nwith = "y"\n'
 
 
 class TestPatchFile(unittest.TestCase):
@@ -57,7 +57,7 @@ class TestPatchFile(unittest.TestCase):
 
     def test_an_injection_without_an_op_is_refused(self):
         with self.assertRaises(PatchError) as caught:
-            self.load('targets = "x"\n[[injection]]\nat = "a"\n')
+            self.load('targets = "x"\n[[injection]]\nmatch = "a"\n')
         self.assertIn("needs an 'op'", str(caught.exception))
 
     def test_a_bad_injection_is_reported_with_its_index(self):

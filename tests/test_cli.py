@@ -136,6 +136,19 @@ class TestCli(unittest.TestCase):
             self.assertFalse(Path(tmp, "base", "core", "unknown.vsh").exists())
             self.assertTrue(Path(tmp, "base", "core", "26_3.vsh").is_file())
 
+    def test_a_malformed_anchor_is_reported_not_traced(self):
+        with self.runner.isolated_filesystem() as tmp:
+            self._project(Path(tmp))
+            Path(tmp, "patches", "p.toml").write_text(
+                'targets = ["core/a.vsh"]\n[[injection]]\n'
+                'op = "replace"\nmatch = "vec4({1})"\nwith = "x"\n',
+                encoding="utf-8",
+            )
+            result = self.runner.invoke(cli, ["build"])
+            self.assertEqual(result.exit_code, 1)
+            self.assertIn("cannot be compiled", self._text(result))
+            self.assertNotIn("Traceback", self._text(result))
+
     def test_missing_config_is_reported_not_traced(self):
         with self.runner.isolated_filesystem():
             result = self.runner.invoke(cli, ["build"])

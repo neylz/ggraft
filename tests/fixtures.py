@@ -24,6 +24,23 @@ CONDITIONAL_INCLUDE = """#version 330
 void main() {}
 """
 
+# a comment, a prototype and a call, none of which is a definition
+FUNCTIONS = """#version 330
+// void main() { not a definition }
+float helper(float x) {
+    if (x < 0.0) {
+        return 0.0;
+    }
+    return x * 2.0;
+}
+
+void main();
+
+void main() {
+    gl_Position = vec4(helper(1.0));
+}
+"""
+
 CONFIG = """[base]
 dir = "base"
 [patches]
@@ -36,7 +53,7 @@ header = false
 REPLACE_PATCH = """targets = [{targets}]
 [[injection]]
 op = "replace"
-at = "gl_Position = {{x}};"
+match = "gl_Position = {{x}};"
 with = "gl_Position = iso({{x}});"
 """
 

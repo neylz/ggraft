@@ -73,9 +73,30 @@ class TestAnchor(unittest.TestCase):
         for bad in (0, -1, "2", 1.5):
             with self.subTest(occurrence=bad):
                 with self.assertRaises(PatchError) as caught:
-                    Anchor.from_spec({"at": "x", "occurrence": bad}, "t")
+                    Anchor.from_spec({"match": "x", "occurrence": bad}, "t")
                 self.assertIn("positive integer", str(caught.exception))
 
     def test_an_empty_anchor_is_refused(self):
         with self.assertRaises(PatchError):
-            Anchor.from_spec({"at": ""}, "t")
+            Anchor.from_spec({"match": ""}, "t")
+
+    def test_the_anchor_key_is_match(self):
+        self.assertEqual(Anchor.from_spec({"match": "x"}, "t").pattern, "x")
+
+    def test_a_placeholder_that_is_not_a_usable_name_is_reported(self):
+        for pattern in ("vec4({1})", "{a} and {a}"):
+            with self.subTest(pattern=pattern):
+                with self.assertRaises(PatchError) as caught:
+                    Anchor.from_spec({"match": pattern}, "t")
+                self.assertIn("cannot be compiled", str(caught.exception))
+
+    def test_an_invalid_regex_is_reported_not_raised_raw(self):
+        with self.assertRaises(PatchError) as caught:
+            Anchor.from_spec({"match": "f(", "regex": True}, "t")
+        self.assertIn("cannot be compiled", str(caught.exception))
+
+    def test_a_malformed_anchor_fails_at_load_not_mid_build(self):
+        # the error names the patch and injection, which only from_spec knows
+        with self.assertRaises(PatchError) as caught:
+            Anchor.from_spec({"match": "vec4({1})"}, "iso[0]")
+        self.assertIn("iso[0]", str(caught.exception))

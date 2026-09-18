@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from typing import Callable, ClassVar
 
 from ggraft import glsl
-from ggraft.errors import PatchError
-from ggraft.patching.anchor import Anchor, substitute
+from ggraft.errors import AmbiguousInjection, PatchError, UnresolvedInjection
+from ggraft.patching.anchor import Anchor, occurrence_of, substitute
 
 _REGISTRY: dict[str, type["Operation"]] = {}
+
+_POINTS = ("HEAD", "TAIL", "RETURN", "INVOKE", "BEFORE", "AFTER")
 
 
 def register(name: str) -> Callable[[type["Operation"]], type["Operation"]]:
@@ -143,3 +145,161 @@ class Declare(Operation):
         if glsl.declares(source, self.text):
             return source
         return glsl.insert_after(source, glsl.declaration_line(source), self.text)
+
+
+def _rest_of_line(source: str, position: int) -> str:
+    end = source.find("\n", position)
+    return source[position:] if end < 0 else source[position:end]
+
+
+def _start_of_line(source: str, position: int) -> int:
+    return source.rfind("\n", 0, position) + 1
+
+
+def _folded(text: str) -> str:
+    return " ".join(line.strip() for line in text.splitlines() if line.strip())
+
+
+@register("function")
+@dataclass
+class FunctionInject(Operation):
+    """Mixin-style injection"""
+
+    needs_anchor: ClassVar[bool] = False
+    function: str
+    point: str
+    text: str
+    occurrence: int | None = None
+    call: str = ""
+    where_: str = "before"
+
+    @classmethod
+    def from_spec(cls, spec: dict, where: str) -> "FunctionInject":
+        name = spec.get("function")
+        if not isinstance(name, str) or not name:
+            raise PatchError(f"{where}: function needs a 'function' name")
+
+        point = spec.get("at", "HEAD")
+        if point not in _POINTS:
+            raise PatchError(
+                f"{where}: 'at' must be one of {', '.join(_POINTS)}, got {point!r}"
+            )
+
+        call = spec.get("call")
+        position = spec.get("where", "before")
+        if point == "INVOKE":
+            if not isinstance(call, str) or not call:
+                raise PatchError(f"{where}: INVOKE needs a 'call' naming the function called")
+            if position not in ("before", "after"):
+                raise PatchError(
+                    f"{where}: 'where' must be 'before' or 'after', got {position!r}"
+                )
+        elif "call" in spec or "where" in spec:
+            raise PatchError(f"{where}: 'call' and 'where' only apply to at = \"INVOKE\"")
+
+        return cls(
+            function=name,
+            point=point,
+            text=_require_text(spec, "text", where),
+            occurrence=occurrence_of(spec, where),
+            call=call or "",
+            where_=position,
+        )
+
+    def _definition(self, source: str, where: str) -> glsl.Function:
+        found = glsl.find_functions(source, self.function)
+        if not found:
+            raise UnresolvedInjection(where, f"no function named {self.function!r} in this shader")
+
+        if self.occurrence is not None:
+            if self.occurrence > len(found):
+                raise UnresolvedInjection(
+                    where,
+                    f"asked for occurrence {self.occurrence} of {self.function!r} "
+                    f"but it is defined {len(found)} time(s)",
+                )
+            target = found[self.occurrence - 1]
+        elif len(found) > 1:
+            lines = [source.count("\n", 0, f.start) + 1 for f in found]
+            raise AmbiguousInjection(
+                where,
+                f"{self.function!r} is defined {len(found)} times (lines {lines})."
+                " add 'occurrence = N'",
+            )
+        else:
+            target = found[0]
+
+        if target.close_brace < 0:
+            raise UnresolvedInjection(where, f"the body of {self.function!r} is never closed")
+        return target
+
+    def _invocations(self, source: str, target: glsl.Function, where: str) -> list[tuple[int, bool, str]]:
+        calls = glsl.find_calls(source, target, self.call)
+        if not calls:
+            raise UnresolvedInjection(
+                where, f"{self.function!r} contains no call to {self.call!r}"
+            )
+
+        sites = []
+        for call in calls:
+            start, end = glsl.statement_span(source, call, target.open_brace + 1)
+            indent = glsl.line_indent(source, start)
+            if self.where_ == "before":
+                sites.append((start, False, indent))
+            elif end < 0:
+                raise UnresolvedInjection(
+                    where,
+                    f"the call to {self.call!r} opens a block instead of ending a "
+                    'statement, so there is nothing to follow; use where = "before"',
+                )
+            else:
+                sites.append((end, True, indent))
+        return sites
+
+    def _sites(self, source: str, target: glsl.Function, where: str) -> list[tuple[int, bool, str]]:
+        """Each site as ``(offset, insert after it, indentation)``, in source order."""
+        if self.point == "HEAD":
+            return [(target.open_brace + 1, True, glsl.body_indent(source, target))]
+        if self.point == "TAIL":
+            return [(target.close_brace, False, glsl.body_indent(source, target))]
+        if self.point == "BEFORE":
+            # a whole declaration, so it takes the line above the signature
+            start = _start_of_line(source, target.start)
+            return [(start, False, glsl.line_indent(source, target.start))]
+        if self.point == "AFTER":
+            return [(target.close_brace + 1, True, glsl.line_indent(source, target.start))]
+        if self.point == "RETURN":
+            found = glsl.return_statements(source, target)
+            if not found:
+                raise UnresolvedInjection(
+                    where,
+                    f"{self.function!r} has no return statement; use at = \"TAIL\" instead",
+                )
+            return [(at, False, glsl.line_indent(source, at)) for at in found]
+        return self._invocations(source, target, where)
+
+    def apply(self, source: str, anchor: Anchor | None, where: str) -> str:
+        target = self._definition(source, where)
+        # last site first, so earlier offsets stay valid
+        for site, after, indent in reversed(self._sites(source, target, where)):
+            source = self._place(source, site, after, indent)
+        return source
+
+    def _place(self, source: str, site: int, after: bool, indent: str) -> str:
+        """A line of its own, or inline when the statement shares a line."""
+        block = "".join(
+            f"{indent}{line}\n" if line.strip() else "\n" for line in self.text.splitlines()
+        )
+        if after:
+            if _rest_of_line(source, site).strip():
+                return source[:site] + " " + _folded(self.text) + source[site:]
+            newline = source.find("\n", site)
+            if newline < 0:                  # nothing follows: the file ends here
+                return source + "\n" + block
+            line_start = newline + 1
+        else:
+            line_start = _start_of_line(source, site)
+            if source[line_start:site].strip():
+                return source[:site] + _folded(self.text) + " " + source[site:]
+
+        return source[:line_start] + block + source[line_start:]
