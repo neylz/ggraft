@@ -7,7 +7,7 @@ _OPEN = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef)\b")
 _CLOSE = re.compile(r"^\s*#\s*endif\b")
 _VERSION = re.compile(r"^\s*#\s*version\b")
 _EXTENSION = re.compile(r"^\s*#\s*extension\b")
-_INCLUDE = re.compile(r"^\s*#\s*include\b")
+_INCLUDE = re.compile(r"^\s*#\s*(?:include|moj_import)\b")
 
 
 def walk(lines: list[str]) -> Iterator[tuple[int, str, int]]:

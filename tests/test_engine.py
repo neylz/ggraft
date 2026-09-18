@@ -91,6 +91,17 @@ class TestEngine(unittest.TestCase):
             (cfg.output_dir / "core" / "a.vsh").read_text(encoding="utf-8"),
         )
 
+    def test_the_configured_version_picks_the_import_directive(self):
+        self.write_patch("p", 'targets = ["core/a.vsh"]\n'
+                              '[[injection]]\nop = "declare"\ninclude = "foo:iso.glsl"\n')
+        for version, directive in (("26.2", "#moj_import"), ("26.3", "#include")):
+            with self.subTest(version=version):
+                (self.root / "ggraft.toml").write_text(
+                    CONFIG.replace("[base]", f'[base]\nversion = "{version}"'), encoding="utf-8")
+                cfg, _ = self.build()
+                out = (cfg.output_dir / "core" / "a.vsh").read_text(encoding="utf-8")
+                self.assertIn(f"{directive} <foo:iso.glsl>", out)
+
     def test_a_missing_base_says_to_pull_first(self):
         shutil.rmtree(self.root / "base")
         self.write_patch("p", REPLACE_PATCH.format(targets='"core/a.vsh"'))

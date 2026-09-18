@@ -37,6 +37,22 @@ class TestOperations(unittest.TestCase):
         op, anchor = self.build({"op": "wrap", "match": "v", "prefix": "f(", "suffix": ")"})
         self.assertEqual(op.apply("x = v;", anchor, "t"), "x = f(v);")
 
+    def test_declare_spells_the_include_with_the_current_directive(self):
+        self.addCleanup(glsl.use, glsl.current())
+        op, anchor = self.build({"op": "declare", "include": "ns:x.glsl"})
+        # resolved on apply, so a patch loaded before the config still follows it
+        glsl.use(glsl.MOJ_IMPORT)
+        self.assertIn("#moj_import <ns:x.glsl>", op.apply(NESTED, anchor, "t"))
+        glsl.use(glsl.INCLUDE)
+        self.assertIn("#include <ns:x.glsl>", op.apply(NESTED, anchor, "t"))
+
+    def test_declare_is_idempotent_against_either_spelling(self):
+        self.addCleanup(glsl.use, glsl.current())
+        glsl.use(glsl.MOJ_IMPORT)
+        op, anchor = self.build({"op": "declare", "include": "minecraft:fog.glsl"})
+        source = "#version 330\n#moj_import <minecraft:fog.glsl>\nvoid main() {}\n"
+        self.assertEqual(op.apply(source, anchor, "t"), source)
+
     def test_declare_inserts_include_at_top_level(self):
         op, anchor = self.build({"op": "declare", "include": "ns:x.glsl"})
         lines = op.apply(NESTED, anchor, "t").splitlines()

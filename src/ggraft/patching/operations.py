@@ -127,7 +127,8 @@ class Wrap(Operation):
 @dataclass
 class Declare(Operation):
     needs_anchor: ClassVar[bool] = False
-    text: str
+    text: str = ""
+    include: str = ""
 
     @classmethod
     def from_spec(cls, spec: dict, where: str) -> "Declare":
@@ -136,15 +137,19 @@ class Declare(Operation):
         if include is not None and text is not None:
             raise PatchError(f"{where}: declare takes either 'include' or 'text', not both")
         if isinstance(include, str):
-            return cls(text=f"#include <{include}>")
+            return cls(include=include)
         if isinstance(text, str):
             return cls(text=text)
         raise PatchError(f"{where}: declare needs an 'include' or a 'text' string")
 
+    def line(self) -> str:
+        return glsl.include_line(self.include) if self.include else self.text
+
     def apply(self, source: str, anchor: Anchor | None, where: str) -> str:
-        if glsl.declares(source, self.text):
+        text = self.line()
+        if glsl.declares(source, text):
             return source
-        return glsl.insert_after(source, glsl.declaration_line(source), self.text)
+        return glsl.insert_after(source, glsl.declaration_line(source), text)
 
 
 def _rest_of_line(source: str, position: int) -> str:

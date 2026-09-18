@@ -112,7 +112,7 @@ No match is an **unresolved injection**, and so is an `occurrence` past the numb
 
 `replace`, `insert` and `wrap` are the anchored operations, so they also take `regex`, `multiline`, `occurrence` and `every` from [Anchors](#anchors). `declare` and `function` find their own place in the file and take no anchor.
 
-`declare` inserts after the last `#include` at conditional-nesting depth zero, falling back to `#extension` then `#version`, and is idempotent. Appending after the *last* `#include` in the file would strand it inside an `#ifdef` branch that some shader variants skip.
+`declare` writes the [directive the version calls for](#import-directives), and inserts after the last import at conditional-nesting depth zero, falling back to `#extension` then `#version`, and is idempotent. Appending after the *last* `#include` in the file would strand it inside an `#ifdef` branch that some shader variants skip.
 
 ### Function injections
 
@@ -184,6 +184,11 @@ python -m unittest tests.test_cli      # one module
 ```
 
 One module per layer: `test_structure`, `test_glsl`, `test_anchor`, `test_operations`, `test_engine`, `test_sources`, `test_cli`. Shared shaders, project files and a network-free mcmeta client live in `tests/fixtures.py`.
+
+## MOJ_IMPORT support
+
+Versions before ``26.3`` were using the ``#moj_import`` directive instead of ``#include``. Setting in ``ggraft.toml`` the target version strictly below ``26.3`` will automatically convert behavior of ``declare`` operator to output the ``#moj_import`` directive.
+
 
 ## Planned Features
 - [ ] python module API

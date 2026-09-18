@@ -112,6 +112,8 @@ def _header(config: Config, item: Plan) -> str:
 
 
 def apply(config: Config, item: Plan) -> Result:
+    glsl.use(config.directive)
+
     source_path = config.base_dir / item.target
     source = source_path.read_text(encoding="utf-8")
 

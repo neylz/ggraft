@@ -156,3 +156,26 @@ class TestCalls(unittest.TestCase):
     def test_a_statement_that_never_ends_reports_no_end(self):
         fragment = "p = helper(x)"
         self.assertEqual(glsl.statement_span(fragment, 4, 0), (0, -1))
+
+
+class TestDirectives(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(glsl.use, glsl.current())
+
+    def test_a_declaration_is_spelled_with_the_current_directive(self):
+        glsl.use(glsl.INCLUDE)
+        self.assertEqual(glsl.include_line("foo:iso.glsl"), "#include <foo:iso.glsl>")
+        glsl.use(glsl.MOJ_IMPORT)
+        self.assertEqual(glsl.include_line("foo:iso.glsl"), "#moj_import <foo:iso.glsl>")
+
+    def test_an_unknown_directive_is_refused(self):
+        with self.assertRaises(ValueError):
+            glsl.use("#import")
+
+    def test_either_spelling_is_found_when_reading(self):
+        # the base uses whichever its own version wrote
+        for directive in glsl.DIRECTIVES:
+            with self.subTest(directive=directive):
+                source = f"#version 330\n{directive} <minecraft:fog.glsl>\nvoid main() {{}}\n"
+                self.assertEqual(glsl.declaration_line(source), 1)
+                self.assertTrue(glsl.declares(source, f"{directive} <minecraft:fog.glsl>"))

@@ -8,6 +8,10 @@ from ggraft.errors import ConfigError
 
 CONFIG_NAME = "ggraft.toml"
 
+INCLUDE = "#include"
+MOJ_IMPORT = "#moj_import"
+INCLUDE_SINCE = (26, 3)
+
 DEFAULT_SOURCE = "assets/minecraft/shaders"
 DEFAULT_BASE_DIR = ".ggraft/base"
 DEFAULT_PATCH_DIR = "patches"
@@ -24,6 +28,7 @@ class Config:
     output_dir: Path
     header: bool
     repo: str
+    directive: str
 
     @property
     def manifest(self) -> Path:
@@ -40,6 +45,21 @@ class Config:
                 "or pass one on the command line"
             )
         return self.version
+
+
+def _version_number(version: str) -> tuple[int, ...]:
+    """doesn't supports OG snapshot versionning"""
+    parts = []
+    for part in version.split("-")[0].split("."):
+        if not part.isdigit():
+            break
+        parts.append(int(part))
+    return tuple(parts)
+
+
+def resolve_directive(version: str | None) -> str:
+    number = _version_number(version) if version else ()
+    return INCLUDE if not number or number >= INCLUDE_SINCE else MOJ_IMPORT
 
 
 def find(start: Path | None = None) -> Path:
@@ -84,4 +104,5 @@ def load(path: Path | None = None) -> Config:
         output_dir=resolve(output["dir"]),
         header=bool(output.get("header", True)),
         repo=base.get("repo", DEFAULT_REPO),
+        directive=resolve_directive(base.get("version")),
     )
