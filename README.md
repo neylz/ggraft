@@ -192,4 +192,3 @@ Versions before ``26.3`` were using the ``#moj_import`` directive instead of ``#
 
 ## Planned Features
 - [ ] python module API
-- [ ] backport handling of ``#moj_import`` rather than ``#include``
